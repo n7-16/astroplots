@@ -2,7 +2,7 @@ import pygame
 import numpy as np
 from pygame.locals import *
 
-class planet:
+class planet:  
     def __init__(self, a, e, p):
         self._running = True
         self._display_surf = None
@@ -11,7 +11,7 @@ class planet:
         self.rotated = False
         self.printdebug = False
         self.semimajor = a
-        self.semiminor = self.semimajor*np.sqrt(1-e**2)
+        self.semiminor = int(self.semimajor*np.sqrt(1-e**2))
         self.perihelion = p
         self._rotated_surf = None
         pygame.clock = pygame.time.Clock()
@@ -21,6 +21,7 @@ class planet:
         self._running = True
         self._render_surf = pygame.Surface((self.semimajor, self.semiminor))
         self._display_surf = pygame.display.set_mode(self.size,pygame.HWSURFACE|pygame.DOUBLEBUF)
+
     def on_event(self, event):
         if event.type == pygame.QUIT:
             self._running = False
@@ -45,6 +46,7 @@ class planet:
                 if not self.rotated:
                     self._rotated_surf = pygame.transform.rotate(self._render_surf, 180)
                     self.rotated =  True
+                
                 self._display_surf.blit(self._rotated_surf, self._rotated_surf.get_rect(center=self._target_rect.center))
                 pygame.display.flip()
             self.on_loop()
@@ -52,5 +54,5 @@ class planet:
         self.on_cleanup()
 
 if __name__ == "__main__" :
-    newPlanet = planet(150, 50, 15)
+    newPlanet = planet(150, 0, 15)
     newPlanet.on_execute()
