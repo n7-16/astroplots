@@ -100,7 +100,7 @@ class run:
     def loop(self):
         
         while self._running:
-            self.clock.tick(1)
+            self.clock.tick(1) # set to 60 for smooooooooth
             for event in pygame.event.get():
                 self.on_event(event)
             pygame.display.update()
