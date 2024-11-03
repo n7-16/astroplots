@@ -1,9 +1,11 @@
+#IMPORTANT: READ LINE 107 BEFORE EXECUTION.
 import pygame
 import numpy as np
 from pygame.locals import *
 import sys
+pygame.init()
 size = width, height = 1000, 562.5
-_display_surf = pygame.display.set_mode(size,pygame.HWSURFACE|pygame.DOUBLEBUF)
+
 
 class construct:
     def elip(self, width, height, semimajor, semiminor, perihelion, _render_surf, color="red"):
@@ -23,7 +25,7 @@ class draw:
         pygame.draw.ellipse(self._render_surf, color,(0, 0, self._target_rect.width, self._target_rect.height), 3)
     
 class planet:  
-    def __init__(self, a, e, p, omega, color = "red"):
+    def __init__(self, a, e, p, omega, _display_surf, color = "red"):
         self._render_surf = None
         # self._display_surf = None
         self.size = self.width,self.height = 1000, 562.5
@@ -35,25 +37,27 @@ class planet:
         self._rotated_surf = None
         self.omega = omega
         self.color = color
-        global _display_surf
+        self._display_surf = _display_surf
         self.on_init()
 
     def on_init(self):
-        pygame.init()
         self._running = True
         self._render_surf = pygame.Surface((self.semimajor, self.semiminor),pygame.SRCALPHA, 32)
         self._render_surf = self._render_surf.convert_alpha()
+        self.construct()
+
+    def construct(self):
+        constructpl = construct()
+        self._target_rect = constructpl.elip(self.width, self.height, self.semimajor, self.semiminor, self.perihelion, self._render_surf)
         self.render()
         
     def render(self):
-        constructpl = construct()
         drawpl = draw()
         rotatepl = rotate()
-        self._target_rect = constructpl.elip(self.width, self.height, self.semimajor, self.semiminor, self.perihelion, self._render_surf)
         drawpl.draw_elip(self._render_surf, self._target_rect)
         self._rotated_surf = rotatepl.rotate_elip(self._render_surf, self.omega)
-        _display_surf.blit(self._rotated_surf, self._rotated_surf.get_rect(center=self._target_rect.center))
-        
+        self._display_surf.blit(self._rotated_surf, self._rotated_surf.get_rect(center=self._target_rect.center))
+        self.on_render()
     
     def on_event(self, event):
         if event.type == pygame.QUIT:
@@ -64,29 +68,43 @@ class planet:
         pass
     def on_cleanup(self):
         pass
-        
+
     
 
 class run:
-    def __init__(self):  
-        self._running = False
-        self.planet1 = planet(150, 0, 15, 180)
-        self.planet2 = planet(500, 0.9, 20, 30)
+    def __init__(self): 
+        self._display_surf = pygame.display.set_mode((1000, 562.5),pygame.HWSURFACE|pygame.DOUBLEBUF)
+        self._running = True
+        self.planet1= planet(150, 0, 15, 180, self._display_surf)
+        self.planet2 = planet(500, 0.9, 20, 30, self._display_surf)
+        self.planetlst = [self.planet1, self.planet2]
+        print(self.planetlst)
+        self.clock = pygame.time.Clock()
         
         self.loop()
     def on_event(self, event):
-        if event == pygame.QUIT:
+        if event.type == pygame.QUIT:
             self._running = False
-    def cleanup():
+    def cleanup(self):
         pygame.display.quit()
         pygame.quit()
         sys.exit()
+    def rotate(self):
+        for planet in self.planetlst:
+            if planet == self.planet1:
+                planet.omega += 1
+            else:
+                planet.omega += 50
+            planet.render()
+
     def loop(self):
-        self._running = True
+        
         while self._running:
+            self.clock.tick(1)
             for event in pygame.event.get():
                 self.on_event(event)
             pygame.display.update()
+            self.rotate() #COMMENT THIS OUT TO FIX THE ROTATION. I'm way too fucking tired to fix this right now.
         self.cleanup()
     
         
