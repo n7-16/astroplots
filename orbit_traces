@@ -3,84 +3,132 @@ import numpy as np
 from pygame.locals import *
 import sys
 import math
+import decimal
 pygame.init()
-size = width, height = 1000, 562.5
+size = width, height = 1920, 1080
+framerate = 60
 
 
 class construct:
     def elip(self, width, height, semimajor, semiminor, perihelion, _render_surf, color="red"):
-        self.semimajor, self.semiminor, self.perihelion, self.width, self.height, self._render_surf = semimajor, semiminor, perihelion, width, height, _render_surf 
-        self._target_rect = pygame.Rect((self.width/2-self.perihelion/2, self.height/2-self.semiminor/2), (self.semimajor, self.semiminor))
+        self.semimajor, self.semiminor, self.perihelion, self.width, self.height, self._render_surf = semimajor, semiminor, perihelion, width, height, _render_surf
+        self._target_rect = pygame.Rect((self.width/2-self.perihelion, self.height/2-self.semiminor/2), (self.semimajor, self.semiminor))
         return self._target_rect
 
-class rotate:
-    def rotate_elip(self, _render_surf, omega):
-        self._render_surf = _render_surf
-        self._rotated_surf = pygame.transform.rotate(self._render_surf, omega)
-        return self._rotated_surf
-    
+# class rotate:
+#     def rotate_elip(self, _render_surf, omega):
+#         self._render_surf = _render_surf
+#         self._rotated_surf = pygame.transform.rotate(self._render_surf, omega)
+#         return self._rotated_surf
+
 class draw:
     def draw_elip(self, _render_surf, _target_rect, color="red"):
         self._render_surf, self._target_rect = _render_surf, _target_rect
-        pygame.draw.ellipse(self._render_surf, color,(0, 0, self._target_rect.width, self._target_rect.height), 3)
-    
-class planet:  
-    def __init__(self, a, e, p, omega, _display_surf, color = "red"):
+        pygame.draw.ellipse(self._render_surf, (255, 0, 0, 80),(0, 0, self._target_rect.width, self._target_rect.height), 4)
+
+class plot:
+    def update_pos(self, pos, a, e, m, omega, vel):
+        global height, width
+        vx,vy = vel[0], vel[1]
+        px,py = pos[0],pos[1]
+        G = 6.6742*(10**-11)*(1.6849*(10**-12))**3*(3.171*(10**-9))**-2
+        M = 1.9891*(10**30)
+        x = (a*(1-e)-pos[0])
+        y = a*np.sqrt(1-e**2)-pos[1]
+        self.theta = -np.arctan2(y,x)
+        a = G*M/(x**2+y**2)
+        ax = a*np.cos(self.theta)
+        ay = a*np.sin(self.theta)
+        print("force:", self.theta, (ax*m, ay*m), a*m)
+        vy = vy+ay
+        vx = vx-ax
+        px -= vx
+        py -= vy
+        print("acceleration:", (ax, ay))
+        print("velocity:", (vx, vy))
+        print("position:", (px,py))
+        return ((vx, vy), (px,py))
+
+    def plot_pos(self, _render_surf, pos, color="blue"):
+        global height, width
+        self._render_surf = _render_surf
+        pygame.draw.circle(self._render_surf, color, (pos), 3, 0, True, True, True, True)
+
+
+class planet:
+    def __init__(self, a, e, omega, _display_surf, m, color = "red"):
         self._render_surf = None
         # self._display_surf = None
-        self.size = self.width,self.height = 1000, 562.5
+        self.size = self.width,self.height = 1920, 1080
         self.rotated = False
         self.printdebug = False
         self.semimajor = a
-        self.semiminor = int(self.semimajor*np.sqrt(1-e**2))
-        self.perihelion = p
+        self.semiminor = np.float64(self.semimajor*np.sqrt(1-e**2))
+        self.perihelion = a*(1-e)
         self._rotated_surf = None
         self.omega = omega
         self.color = color
         self._display_surf = _display_surf
+        self.eccentricity = e
+        self.mass = m
+        self.pos = (self.semimajor,0)
+        self.vel = (np.sqrt((6.6742*(10**-11)*(1.6849*(10**-12))**3*(3.171*(10**-9))**-2)*(m+1.981*(10**30))*(2/np.sqrt((self.semimajor-self.perihelion)**2+self.semiminor**2)-1/self.semimajor)),0)
+        self.color = color
         self.on_init()
 
     def on_init(self):
         self._running = True
-        self._render_surf = pygame.Surface((self.semimajor, self.semiminor),pygame.SRCALPHA, 32)
+        self._render_surf = pygame.Surface((self.semimajor*2, self.semiminor*2),pygame.SRCALPHA, 32)
         self._render_surf = self._render_surf.convert_alpha()
         self.construct()
 
     def construct(self):
         constructpl = construct()
-        self._target_rect = constructpl.elip(self.width, self.height, self.semimajor, self.semiminor, self.perihelion, self._render_surf)
+        self._target_rect = constructpl.elip(self.width, self.height, self.semimajor*2, self.semiminor*2, self.perihelion, self._render_surf)
         self.render()
-        
+
     def render(self):
         drawpl = draw()
-        rotatepl = rotate()
+        plotpl = plot()
+        # rotatepl = rotate()
         drawpl.draw_elip(self._render_surf, self._target_rect)
-        self._rotated_surf = rotatepl.rotate_elip(self._render_surf, self.omega)
-        self._display_surf.blit(self._rotated_surf, self._rotated_surf.get_rect(center=(self._target_rect.centerx-((self.semimajor-self.perihelion)*(1-math.cos(math.radians(self.omega)))), self._target_rect.centery-((self.semimajor-self.perihelion)*math.sin(math.radians(self.omega))))))
+        pygame.draw.circle(self._render_surf, "blue", (self.perihelion,self.semiminor), 4, 0)
+        self.vel, self.pos = plotpl.update_pos(self.pos, self.semimajor, self.eccentricity, self.mass, self.omega, self.vel)
+        plotpl.plot_pos(self._render_surf, self.pos, color=self.color)
+
+        # self._rotated_surf = rotatepl.rotate_elip(self._render_surf, self.omega)
+        self._rotated_surf = self._render_surf
+        self._display_surf.blit(self._rotated_surf, self._rotated_surf.get_rect(center=((self._target_rect.centerx), self._target_rect.centery)))
         self.on_render()
-    
+
     def on_event(self, event):
         if event.type == pygame.QUIT:
             self._running = False
     def on_loop(self):
         pass
     def on_render(self):
-        pass
+        self.on_cleanup()
     def on_cleanup(self):
-        pass
+        self._render_surf.fill((0,0,0, 0))
 
-    
+
 
 class run:
-    def __init__(self): 
-        self._display_surf = pygame.display.set_mode((1000, 562.5),pygame.HWSURFACE|pygame.DOUBLEBUF)
+    def __init__(self):
+        global height, width
+        self._display_surf = pygame.display.set_mode((1920, 1080),pygame.HWSURFACE|pygame.DOUBLEBUF)
         self._running = True
-        self.planet1= planet(150, 0, 150, 180, self._display_surf)
-        self.planet2 = planet(500, 0.9, 20, 0, self._display_surf)
-        self.planetlst = [self.planet1, self.planet2]
-        print(self.planetlst)
+        self.sun = planet(3, 0, 0, self._display_surf, 1.9891*(10**30),color="yellow")
+        self.earth= planet(150, 0, 0, self._display_surf, 5.9*(10**24), color = "blue")
+        self.mercury = planet(58.0647, 0.2056, 0, self._display_surf, 3.30104*(10**23), color="gray")
+        self.venus = planet(108.45, 0.007, 0, self._display_surf, 4.867*(10**27), "orange")
+        self.mars = planet(228.6, 0.0934, 0, self._display_surf, 6.9*(10**23), "red")
+        self.jupiter = planet(780.57, 0.0487, 0, self._display_surf, 1.89813*(10**27), (246, 146, 62))
+        self.saturn = planet(1435.95, 0.0520, 0, self._display_surf, 5.683*(10**26), (207, 185, 147))
+        self.planetlst = [self.earth, self.mercury, self.venus, self.mars, self.jupiter, self.saturn]
+        # print(self.planetlst)
         self.clock = pygame.time.Clock()
-        
+
         self.loop()
     def on_event(self, event):
         if event.type == pygame.QUIT:
@@ -91,25 +139,27 @@ class run:
         sys.exit()
     def rotate(self):
         for planet in self.planetlst:
-            if planet == self.planet1:
-                planet.omega += 1
-                print(planet.omega)
-            else:
-                planet.omega += 1
+            # if planet == self.planet2:
+            #     planet.omega += 1
+            #     #print(planet.omega)
+            # else:
+            #     planet.omega += 1
             planet.render()
+            pass
 
     def loop(self):
-        
+        global framerate
         while self._running:
-            self.clock.tick(60)
+            self.clock.tick(framerate)
+            pygame.draw.circle(self._display_surf, "yellow", (width/2, height/2), 6, 0)
             for event in pygame.event.get():
                 self.on_event(event)
             pygame.display.update()
             self._display_surf.fill((0,0,0))
             self.rotate()
         self.cleanup()
-    
-        
+
+
 if __name__ == "__main__":
     run1 = run()
     print()
