@@ -1,4 +1,4 @@
-import pygame
+e
 import time
 import numpy as np
 from pygame.locals import *
@@ -10,7 +10,7 @@ pygame.init() # -> calls pygame.font.init()
 size = width, height = 1920, 1080
 framerate = 60
 firstrendertime = time.time()
-sizescale = 150 # pixels = 1 simulated AU
+sizescale = 50 # pixels = 1 simulated AU
 timescale = 30 # seconds = 1 simulated year 
 
 
@@ -18,7 +18,7 @@ timescale = 30 # seconds = 1 simulated year
 class planet(pygame.sprite.Sprite):
     def __init__(self, a, e, omega, _display_surf, m, name,color = "red"):
         super().__init__()
-        global timescale
+        global timescale, sizescale
         self.vec = pygame.math.Vector2
         self._render_surf = None
         # self._display_surf = None
@@ -34,7 +34,7 @@ class planet(pygame.sprite.Sprite):
         self.eccentricity = e
         self.mass = m
         self.pos = self.vec([self.semimajor,0])
-        self.G = (6.6743*(10**-11)*(6.6849*(10**-12))**3*(timescale/30*3.171*(10**-8))**-2) # units: AU/kg(year)^2
+        self.G = (6.6743*(10**-11)*(6.6849*(10**-12)*(sizescale/150))**3*(timescale/30*3.171*(10**-8))**-2) # units: AU/kg(year)^2
         self.vel = self.vec((np.sqrt(self.G*(m+1.981*(10**30))*(2/np.sqrt((self.semimajor-self.perihelion)**2+self.semiminor**2)-1/self.semimajor)),0)) # vis-viva equation
         self.firstrender = True
         self.color = color
@@ -189,4 +189,4 @@ class run():
 
 if __name__ == "__main__":
     run1 = run()
- 
+    print()
