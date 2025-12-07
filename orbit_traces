@@ -1,67 +1,29 @@
 import pygame
+import time
 import numpy as np
 from pygame.locals import *
 import sys
 import math
 import decimal
-pygame.init()
+pygame.init() # -> calls pygame.font.init()
+# np.cuda.runtime.setDevice(1)
 size = width, height = 1920, 1080
 framerate = 60
+firstrendertime = time.time()
+sizescale = 150 # pixels = 1 simulated AU
+timescale = 30 # seconds = 1 simulated year 
 
 
-class construct:
-    def elip(self, width, height, semimajor, semiminor, perihelion, _render_surf, color="red"):
-        self.semimajor, self.semiminor, self.perihelion, self.width, self.height, self._render_surf = semimajor, semiminor, perihelion, width, height, _render_surf
-        self._target_rect = pygame.Rect((self.width/2-self.perihelion, self.height/2-self.semiminor/2), (self.semimajor, self.semiminor))
-        return self._target_rect
 
-# class rotate:
-#     def rotate_elip(self, _render_surf, omega):
-#         self._render_surf = _render_surf
-#         self._rotated_surf = pygame.transform.rotate(self._render_surf, omega)
-#         return self._rotated_surf
-
-class draw:
-    def draw_elip(self, _render_surf, _target_rect, color="red"):
-        self._render_surf, self._target_rect = _render_surf, _target_rect
-        pygame.draw.ellipse(self._render_surf, (255, 0, 0, 80),(0, 0, self._target_rect.width, self._target_rect.height), 4)
-
-class plot:
-    def update_pos(self, pos, a, e, m, omega, vel):
-        global height, width
-        vx,vy = vel[0], vel[1]
-        px,py = pos[0],pos[1]
-        G = 6.6742*(10**-11)*(1.6849*(10**-12))**3*(3.171*(10**-9))**-2
-        M = 1.9891*(10**30)
-        x = (a*(1-e)-pos[0])
-        y = a*np.sqrt(1-e**2)-pos[1]
-        self.theta = -np.arctan2(y,x)
-        a = G*M/(x**2+y**2)
-        ax = a*np.cos(self.theta)
-        ay = a*np.sin(self.theta)
-        print("force:", self.theta, (ax*m, ay*m), a*m)
-        vy = vy+ay
-        vx = vx-ax
-        px -= vx
-        py -= vy
-        print("acceleration:", (ax, ay))
-        print("velocity:", (vx, vy))
-        print("position:", (px,py))
-        return ((vx, vy), (px,py))
-
-    def plot_pos(self, _render_surf, pos, color="blue"):
-        global height, width
-        self._render_surf = _render_surf
-        pygame.draw.circle(self._render_surf, color, (pos), 3, 0, True, True, True, True)
-
-
-class planet:
-    def __init__(self, a, e, omega, _display_surf, m, color = "red"):
+class planet(pygame.sprite.Sprite):
+    def __init__(self, a, e, omega, _display_surf, m, name,color = "red"):
+        super().__init__()
+        global timescale
+        self.vec = pygame.math.Vector2
         self._render_surf = None
         # self._display_surf = None
         self.size = self.width,self.height = 1920, 1080
         self.rotated = False
-        self.printdebug = False
         self.semimajor = a
         self.semiminor = np.float64(self.semimajor*np.sqrt(1-e**2))
         self.perihelion = a*(1-e)
@@ -71,63 +33,127 @@ class planet:
         self._display_surf = _display_surf
         self.eccentricity = e
         self.mass = m
-        self.pos = (self.semimajor,0)
-        self.vel = (np.sqrt((6.6742*(10**-11)*(1.6849*(10**-12))**3*(3.171*(10**-9))**-2)*(m+1.981*(10**30))*(2/np.sqrt((self.semimajor-self.perihelion)**2+self.semiminor**2)-1/self.semimajor)),0)
+        self.pos = self.vec([self.semimajor,0])
+        self.G = (6.6743*(10**-11)*(6.6849*(10**-12))**3*(timescale/30*3.171*(10**-8))**-2) # units: AU/kg(year)^2
+        self.vel = self.vec((np.sqrt(self.G*(m+1.981*(10**30))*(2/np.sqrt((self.semimajor-self.perihelion)**2+self.semiminor**2)-1/self.semimajor)),0)) # vis-viva equation
+        self.firstrender = True
         self.color = color
         self.on_init()
-
+     
     def on_init(self):
         self._running = True
-        self._render_surf = pygame.Surface((self.semimajor*2, self.semiminor*2),pygame.SRCALPHA, 32)
+        self._render_surf = pygame.Surface((self.semimajor*2+10,self.semiminor*2+10),pygame.SRCALPHA, 32)
         self._render_surf = self._render_surf.convert_alpha()
         self.construct()
 
+    def construct_elip(self, width, height, semimajor, semiminor, perihelion, _render_surf, color="red"):
+        # self.semimajor, self.semiminor, self.perihelion, self.width, self.height, self._render_surf = semimajor, semiminor, perihelion, width, height, _render_surf
+        self._target_rect = pygame.Rect((self.width/2-self.perihelion, self.height/2-self.semiminor/2), (self.semimajor, self.semiminor))
+        return self._target_rect
+
+    def rotate_elip(self, _render_surf, omega, call):
+        self._render_surf = _render_surf
+        self._rotated_surf = pygame.transform.rotate(self._render_surf, 10)
+        # if getattr(call,"__planetname__") == "mercury":
+        #     print(self._rotated_surf.get_size())
+        return self._rotated_surf
+
     def construct(self):
-        constructpl = construct()
-        self._target_rect = constructpl.elip(self.width, self.height, self.semimajor*2, self.semiminor*2, self.perihelion, self._render_surf)
-        self.render()
+        self._target_rect = pygame.Rect((self.width/2-self.perihelion, self.height/2-self.semiminor), (self.semimajor*2, self.semiminor*2))
+        # self.render() ### DO NOT CALL RENDER FROM HERE!!! THIS ONLY RUNS ON INIT, USELESS
+
+    def draw_elip(self, _render_surf, _target_rect, color="red"):
+        self._render_surf, self._target_rect = _render_surf, _target_rect
+        pygame.draw.ellipse(self._render_surf, (255, 0, 0, 80),(0, 0, self._target_rect.width, self._target_rect.height), 4)
+
+    def plot_pos(self, _render_surf, pos, color="blue"):
+        global height, width
+        self._render_surf = _render_surf
+        pygame.draw.circle(self._render_surf, color, (tuple(pos)), 3, 0, True, True, True, True)
 
     def render(self):
-        drawpl = draw()
-        plotpl = plot()
-        # rotatepl = rotate()
-        drawpl.draw_elip(self._render_surf, self._target_rect)
+        # plotpl = plot()
+        self.draw_elip(self._render_surf, self._target_rect)
         pygame.draw.circle(self._render_surf, "blue", (self.perihelion,self.semiminor), 4, 0)
-        self.vel, self.pos = plotpl.update_pos(self.pos, self.semimajor, self.eccentricity, self.mass, self.omega, self.vel)
-        plotpl.plot_pos(self._render_surf, self.pos, color=self.color)
-
-        # self._rotated_surf = rotatepl.rotate_elip(self._render_surf, self.omega)
+        # self.vel, self.pos = plotpl.update_pos(self.pos, self.semimajor, self.eccentricity, self.mass, self.omega, self.vel)
+        self.update_pos(debug=False)
+        self.plot_pos(self._render_surf, self.pos, color=self.color)  
+        # self._rotated_surf = self.rotate_elip(self._render_surf, self.omega,self)
         self._rotated_surf = self._render_surf
-        self._display_surf.blit(self._rotated_surf, self._rotated_surf.get_rect(center=((self._target_rect.centerx), self._target_rect.centery)))
+        # self._display_surf.blit(self._rotated_surf, self._rotated_surf.get_rect(center=((self._target_rect.centerx), self._target_rect.centery)))
+        self._display_surf.blit(self._rotated_surf, (width/2-self.perihelion, height/2-self.semiminor))
         self.on_render()
+
+    def update_pos(self,debug=False):
+        self.delta_t = 1
+        global height, width
+        vx,vy = self.vel[0],self.vel[1]
+        px,py = self.pos[0],self.pos[1]
+        a = self.semimajor
+        e = self.eccentricity
+        # G = 6.6742*(10**-11)*(6.6849*(10**-12))**3*(3.171*(10**-8))**-2
+        G = self.G
+        M = 1.9891*(10**30)
+        x = (a*(1-e)-self.pos[0])
+        y = a*np.sqrt(1-e**2)-self.pos[1]
+        self.theta = np.arctan2(y,x)
+        accel = G*M/(x**2+y**2)
+        ax = accel*np.cos(self.theta)
+        ay = accel*np.sin(self.theta)
+        # print("force:", self.theta, (ax*m, ay*m), a*m)
+        vy = vy-ay*self.delta_t
+        vx = vx-ax*self.delta_t
+        px -= vx
+        py -= vy
+        if debug:
+            print("acceleration:", (ax, ay))
+            print("velocity:", (vx, vy))
+            print("position:", (px,py))
+        self.pos.update(px,py)
+        self.vel.update(vx,vy)
 
     def on_event(self, event):
         if event.type == pygame.QUIT:
             self._running = False
+
     def on_loop(self):
         pass
+
     def on_render(self):
         self.on_cleanup()
+        if self.firstrender:
+            print(time.time()-firstrendertime) 
+            self.firstrender = False
+
     def on_cleanup(self):
-        self._render_surf.fill((0,0,0, 0))
+        self._render_surf.fill((0,0,0,0))
 
 
-
-class run:
+class run():
     def __init__(self):
-        global height, width
+        global height, width, sizescale
         self._display_surf = pygame.display.set_mode((1920, 1080),pygame.HWSURFACE|pygame.DOUBLEBUF)
         self._running = True
-        self.sun = planet(3, 0, 0, self._display_surf, 1.9891*(10**30),color="yellow")
-        self.earth= planet(150, 0, 0, self._display_surf, 5.9*(10**24), color = "blue")
-        self.mercury = planet(58.0647, 0.2056, 0, self._display_surf, 3.30104*(10**23), color="gray")
-        self.venus = planet(108.45, 0.007, 0, self._display_surf, 4.867*(10**27), "orange")
-        self.mars = planet(228.6, 0.0934, 0, self._display_surf, 6.9*(10**23), "red")
-        self.jupiter = planet(780.57, 0.0487, 0, self._display_surf, 1.89813*(10**27), (246, 146, 62))
-        self.saturn = planet(1435.95, 0.0520, 0, self._display_surf, 5.683*(10**26), (207, 185, 147))
-        self.planetlst = [self.earth, self.mercury, self.venus, self.mars, self.jupiter, self.saturn]
+        self.sun = planet(3, 0, 0, self._display_surf, 1.9891*(10**30),name="sun",color="yellow")
+        self.earth = planet(150/150*sizescale, 0, 0, self._display_surf, 5.9*(10**24), name="earth",color = "blue")
+        self.mercury = planet(58.0647/150*sizescale, 0.2056, 0, self._display_surf, 3.30104*(10**23),name="mercury", color="gray")
+        self.venus = planet(108.45/150*sizescale, 0.007, 0, self._display_surf, 4.867*(10**27),name="venus", color="orange")
+        self.mars = planet(228.6/150*sizescale, 0.0934, 0, self._display_surf, 6.9*(10**23), name="mars",color="red")
+        self.jupiter = planet(780.57/150*sizescale, 0.0487, 0, self._display_surf, 1.89813*(10**27),name="jupiter", color=(246, 146, 62))
+        self.saturn = planet(1435.95/150*sizescale, 0.0520, 0, self._display_surf, 5.683*(10**26), name="saturn",color=(207, 185, 147))
         # print(self.planetlst)
+        # self.mercury.__planetname__ == "mercury"
+        # setattr(self.mercury,"__planetname__","mercury")
+        # setattr(self.sun,"__planetname__","sun")
+        # setattr(self.earth,"__planetname__","earth")
+        # print(self.mercury.__planetname__)
+        # self.planetlst = [self.sun, self.earth, self.mercury]
+        self.planetlst = [self.earth, self.mercury, self.venus, self.mars, self.jupiter, self.saturn]
         self.clock = pygame.time.Clock()
+        font = pygame.freetype.SysFont("Courier", 12, bold=True)
+        surface, _ = font.render(text="=",fgcolor="blue",bgcolor="black")
+        self.surface = surface.convert_alpha()
+        
 
         self.loop()
     def on_event(self, event):
@@ -146,7 +172,7 @@ class run:
             #     planet.omega += 1
             planet.render()
             pass
-
+    
     def loop(self):
         global framerate
         while self._running:
@@ -155,6 +181,7 @@ class run:
             for event in pygame.event.get():
                 self.on_event(event)
             pygame.display.update()
+            self._display_surf.blit(self.surface,(10,10))
             self._display_surf.fill((0,0,0))
             self.rotate()
         self.cleanup()
@@ -162,4 +189,4 @@ class run:
 
 if __name__ == "__main__":
     run1 = run()
-    print()
+ 
