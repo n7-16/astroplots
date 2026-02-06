@@ -1,24 +1,25 @@
-e
 import time
 import numpy as np
 from pygame.locals import *
+import pygame
 import sys
 import math
 import decimal
+import csv
+import os
 pygame.init() # -> calls pygame.font.init()
 # np.cuda.runtime.setDevice(1)
 size = width, height = 1920, 1080
 framerate = 60
 firstrendertime = time.time()
-sizescale = 50 # pixels = 1 simulated AU
-timescale = 30 # seconds = 1 simulated year 
-
-
+sizescale = 150 # pixels = 1 simulated AU
+timescale = 10 # seconds = 1 simulated year 
 
 class planet(pygame.sprite.Sprite):
-    def __init__(self, a, e, omega, _display_surf, m, name,color = "red"):
+    def __init__(self, a, e, omega, _display_surf, m, name,color = "red",custom=False):
         super().__init__()
         global timescale, sizescale
+        self.custom = custom
         self.vec = pygame.math.Vector2
         self._render_surf = None
         # self._display_surf = None
@@ -42,7 +43,10 @@ class planet(pygame.sprite.Sprite):
      
     def on_init(self):
         self._running = True
-        self._render_surf = pygame.Surface((self.semimajor*2+10,self.semiminor*2+10),pygame.SRCALPHA, 32)
+        try:
+            self._render_surf = pygame.Surface((self.semimajor*2+10,self.semiminor*2+10),pygame.SRCALPHA, 32)
+        except Exception as err:
+            print(self.semimajor*2+10,self.semiminor*2+10)
         self._render_surf = self._render_surf.convert_alpha()
         self.construct()
 
@@ -64,7 +68,10 @@ class planet(pygame.sprite.Sprite):
 
     def draw_elip(self, _render_surf, _target_rect, color="red"):
         self._render_surf, self._target_rect = _render_surf, _target_rect
-        pygame.draw.ellipse(self._render_surf, (255, 0, 0, 80),(0, 0, self._target_rect.width, self._target_rect.height), 4)
+        if not self.custom:
+            pygame.draw.ellipse(self._render_surf, (255, 0, 0, 80),(0, 0, self._target_rect.width, self._target_rect.height), 4)
+        else:
+            pygame.draw.ellipse(self._render_surf, (255, 255, 0, 80),(0, 0, self._target_rect.width, self._target_rect.height), 4)
 
     def plot_pos(self, _render_surf, pos, color="blue"):
         global height, width
@@ -122,7 +129,7 @@ class planet(pygame.sprite.Sprite):
     def on_render(self):
         self.on_cleanup()
         if self.firstrender:
-            print(time.time()-firstrendertime) 
+            # print(time.time()-firstrendertime)
             self.firstrender = False
 
     def on_cleanup(self):
@@ -131,7 +138,12 @@ class planet(pygame.sprite.Sprite):
 
 class run():
     def __init__(self):
-        global height, width, sizescale
+        global height, width, sizescale, timescale
+        with open("parameters.txt", "r") as f:
+            sizescale = np.float64(f.readline().strip())
+            timescale = np.float64(f.readline().strip())
+        # print(sizescale,timescale)
+
         self._display_surf = pygame.display.set_mode((1920, 1080),pygame.HWSURFACE|pygame.DOUBLEBUF)
         self._running = True
         self.sun = planet(3, 0, 0, self._display_surf, 1.9891*(10**30),name="sun",color="yellow")
@@ -141,18 +153,22 @@ class run():
         self.mars = planet(228.6/150*sizescale, 0.0934, 0, self._display_surf, 6.9*(10**23), name="mars",color="red")
         self.jupiter = planet(780.57/150*sizescale, 0.0487, 0, self._display_surf, 1.89813*(10**27),name="jupiter", color=(246, 146, 62))
         self.saturn = planet(1435.95/150*sizescale, 0.0520, 0, self._display_surf, 5.683*(10**26), name="saturn",color=(207, 185, 147))
-        # print(self.planetlst)
-        # self.mercury.__planetname__ == "mercury"
-        # setattr(self.mercury,"__planetname__","mercury")
-        # setattr(self.sun,"__planetname__","sun")
-        # setattr(self.earth,"__planetname__","earth")
-        # print(self.mercury.__planetname__)
+        self.uranus = planet(2873.46/150*sizescale, 0.0472, 0, self._display_surf, 8.681*(10**25), name="uranus", color=(79, 158, 215))
+        self.neptune = planet(4495.06/150*sizescale, 0.0086, 0, self._display_surf, 1.02413*(10**26), name="neptune", color=(33, 64, 243))
         # self.planetlst = [self.sun, self.earth, self.mercury]
         self.planetlst = [self.earth, self.mercury, self.venus, self.mars, self.jupiter, self.saturn]
+        # self.planetlst = [self.sun, self.earth, self.mercury, self.venus, self.mars, self.jupiter, self.saturn, self.uranus, self.neptune]
+        with open("planetsworking.csv", "r") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                # print(row)
+                planet_obj = planet(
+                    np.float64(row["a (AU)"])*sizescale, np.float64(row["e"]), 0, self._display_surf, 
+                    np.float64(row["m (kg)"]), "custom planet", (255,0,0), custom=True
+                )
+                self.planetlst.append(planet_obj)
+        
         self.clock = pygame.time.Clock()
-        font = pygame.freetype.SysFont("Courier", 12, bold=True)
-        surface, _ = font.render(text="=",fgcolor="blue",bgcolor="black")
-        self.surface = surface.convert_alpha()
         
 
         self.loop()
@@ -160,6 +176,8 @@ class run():
         if event.type == pygame.QUIT:
             self._running = False
     def cleanup(self):
+        os.remove("parameters.txt")
+        os.remove("planetsworking.csv")
         pygame.display.quit()
         pygame.quit()
         sys.exit()
@@ -181,7 +199,6 @@ class run():
             for event in pygame.event.get():
                 self.on_event(event)
             pygame.display.update()
-            self._display_surf.blit(self.surface,(10,10))
             self._display_surf.fill((0,0,0))
             self.rotate()
         self.cleanup()
