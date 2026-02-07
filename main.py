@@ -36,17 +36,17 @@ def add_planet():
     if not a or not e or not m:
         messagebox.showerror("Error", "All fields must be filled in.")
         return
-    if not a.replace(".","",1).isdecimal():
+    if not a.replace(".","",1).isdecimal() or a <= 0:
         messagebox.showerror("Error", "Semi-major axis must be a valid number.")
         return
-    if not e.replace(".","", 1).isnumeric():
+    if not e.replace(".","", 1).isnumeric() or e <= 0:
         messagebox.showerror("Error", "Eccentricity must be a valid number.")
         return
     else:
         if np.float64(e) >= 1:
             messagebox.showerror("Error", "Eccentricity must be less than 1.")
             return
-    if not e.replace(".","", 1).isnumeric():
+    if not m.replace(".","", 1).isnumeric() or m <= 0:
         messagebox.showerror("Error", "Mass must be a valid number.")
         return
     planet_lst.insert(tk.END, f"{index}. a: {np.float64(a)}, e: {np.float64(e)}, m: {np.float64(m)}")
